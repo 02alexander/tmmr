@@ -51,7 +51,6 @@ async fn handle_request(stream: &mut TcpStream) -> Result<(), Error> {
             s += ":";
         }
         s += &pad_left(&(sec % 60).to_string(), 2, '0');
-        s += "\n";
 
         let red_threshold = 5;
         if sec <= red_threshold {
@@ -61,6 +60,8 @@ async fn handle_request(stream: &mut TcpStream) -> Result<(), Error> {
         if sec <= red_threshold {
             stream.write_all(CLEAR_COLOR.as_bytes()).await?;
         }
+        stream.write_all(b"\n").await?;
+
         tokio::time::sleep(Duration::from_millis(1000)).await;
     }
     stream.flush().await
