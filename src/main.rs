@@ -64,6 +64,7 @@ async fn handle_request(stream: &mut TcpStream) -> Result<(), Error> {
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
     }
+    stream.write_all(b"\x07\n").await?;
     stream.flush().await
 }
 
