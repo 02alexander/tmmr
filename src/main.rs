@@ -27,9 +27,12 @@ fn pad_left(s: &str, n: usize, ch: char) -> String {
 }
 
 async fn handle_request(stream: &mut TcpStream) -> Result<(), Error> {
-    let mut buffer = [0 as u8; 2048];
-
-    stream.read(&mut buffer).await?;
+    let mut buffer = [0 as u8; 4196];
+    let n = stream.read(&mut buffer).await?;
+    if let Ok(s) = std::str::from_utf8(&buffer[..n]) {
+        println!("Received request to the following url");
+        println!("{:?}", s.lines().next());
+    }
 
     let (hours, minutes, seconds) =
         parse_request(&buffer).ok_or(Error::from(ErrorKind::InvalidData))?;
