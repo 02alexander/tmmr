@@ -35,7 +35,7 @@ async fn handle_request(stream: &mut TcpStream) -> Result<(), Error> {
     }
 
     let (hours, minutes, seconds) =
-        parse_request(&buffer).ok_or(Error::from(ErrorKind::InvalidData))?;
+        parse_request(&buffer[..n]).ok_or(Error::from(ErrorKind::InvalidData))?;
     let tot_seconds = seconds + minutes * 60 + hours * 3600;
 
     let status = b"HTTP/1.1 200 OK\r\n\r\n";
