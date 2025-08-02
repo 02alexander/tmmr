@@ -1,18 +1,25 @@
+use std::fmt::Write;
 use std::io::{Error, ErrorKind};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-const CLEAR_PREV_LINE: &str = "\x1b[1A\x1b[2K\x1b[0G";
-const SET_RED: &str = "\x1b[30;41m";
+const CLEAR_PREV_LINE: &str = "\x1b[1A\x1b[2K\x1b[1G";
+const SET_RED: &str = "\x1b[37;41m";
 const CLEAR_COLOR: &str = "\x1b[0m";
+const ALARM_TEXT: &str = "
+  AAA   LL        AAA   RRRRRR  MM    MM 
+ AAAAA  LL       AAAAA  RR   RR MMM  MMM 
+AA   AA LL      AA   AA RRRRRR  MM MM MM 
+AAAAAAA LL      AAAAAAA RR  RR  MM    MM 
+AA   AA LLLLLLL AA   AA RR   RR MM    MM ";
 
 /// Returns (hours, minute, seconds)
 fn parse_request(request: &[u8]) -> Option<(u32, u32, u32)> {
-    let input_str = std::str::from_utf8(&request).ok()?;
+    let input_str = std::str::from_utf8(request).ok()?;
     let first_line = input_str.lines().next()?;
-    let url = first_line.split_whitespace().skip(1).next()?;
-    let inp = url.split('/').skip(1).next()?;
+    let url = first_line.split_whitespace().nth(1)?;
+    let inp = url.split('/').nth(1)?;
 
     let mut times = inp.split(':').rev().map(|s| s.parse::<u32>().ok());
     let seconds = times.next().unwrap_or(Some(0))?;
@@ -21,13 +28,20 @@ fn parse_request(request: &[u8]) -> Option<(u32, u32, u32)> {
     Some((hours, minutes, seconds))
 }
 
-fn pad_left(s: &str, n: usize, ch: char) -> String {
-    let n = if n < s.len() { s.len() } else { n };
-    String::from_iter(std::iter::repeat(ch).take(n - s.len()).chain(s.chars()))
+fn format_time(sec: u32) -> String {
+    let mut s = String::new();
+    if sec >= 3600 {
+        write!(&mut s, "{:0>2}:", sec / 3600).unwrap();
+    }
+    if sec >= 60 {
+        write!(&mut s, "{:0>2}:", (sec / 60) % 60).unwrap();
+    }
+    write!(&mut s, "{:0>2}", sec % 60).unwrap();
+    s
 }
 
 async fn handle_request(stream: &mut TcpStream) -> Result<(), Error> {
-    let mut buffer = [0 as u8; 4196];
+    let mut buffer = [0_u8; 4196];
     let n = stream.read(&mut buffer).await?;
     if let Ok(s) = std::str::from_utf8(&buffer[..n]) {
         println!("Received request to the following url");
@@ -44,17 +58,7 @@ async fn handle_request(stream: &mut TcpStream) -> Result<(), Error> {
         if sec != tot_seconds {
             stream.write_all(CLEAR_PREV_LINE.as_bytes()).await?;
         }
-        let mut s = String::new();
-        if sec >= 3600 {
-            s += &pad_left(&(sec / 3600).to_string(), 2, '0');
-            s += ":";
-        }
-        if sec >= 60 {
-            s += &pad_left(&((sec / 60) % 60).to_string(), 2, '0');
-            s += ":";
-        }
-        s += &pad_left(&(sec % 60).to_string(), 2, '0');
-
+        let s = format_time(sec);
         let red_threshold = 5;
         if sec <= red_threshold {
             stream.write_all(SET_RED.as_bytes()).await?;
@@ -64,9 +68,12 @@ async fn handle_request(stream: &mut TcpStream) -> Result<(), Error> {
             stream.write_all(CLEAR_COLOR.as_bytes()).await?;
         }
         stream.write_all(b"\n").await?;
-
         tokio::time::sleep(Duration::from_millis(1000)).await;
     }
+    stream.write_all(CLEAR_PREV_LINE.as_bytes()).await?;
+    stream.write_all(SET_RED.as_bytes()).await?;
+    stream.write_all(ALARM_TEXT.as_bytes()).await?;
+    stream.write_all(CLEAR_COLOR.as_bytes()).await?;
     stream.write_all(b"\x07\n").await?;
     stream.flush().await
 }
