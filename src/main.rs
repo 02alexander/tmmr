@@ -1,6 +1,7 @@
 use std::fmt::Write;
 use std::io::{Error, ErrorKind};
 use std::time::Duration;
+use chrono::Local;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -86,7 +87,7 @@ async fn main() {
     let listener = TcpListener::bind(addr).await.unwrap();
     loop {
         if let Ok((mut stream, source)) = listener.accept().await {
-            println!("received connection from {source:?}");
+            println!("[{:?}] received connection from {source:?}", Local::now());
             tokio::spawn(async move {
                 match handle_request(&mut stream).await {
                     Ok(_) => {}
